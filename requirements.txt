@@ -1,14 +1,5 @@
-
-# Core Requirements
+# Core requirements
 flask==3.0.2
 werkzeug==3.0.1
-
-# Database
-sqlite3==2.6.0  # Built-in but explicitly declared
-
-# Production Add-ons
-gunicorn==21.2.0  # Production WSGI server
-python-dotenv==1.0.0  # Environment management
-
-# Security
-blinker==1.7.0  # Required for Flask security signals
+gunicorn==21.2.0
+python-dotenv==1.0.0
