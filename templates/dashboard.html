@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dual Tracker Dashboard</title>
+    <style>
+        :root {
+            --primary: #0af;
+            --bg: #121212;
+            --card-bg: #1e1e1e;
+            --text: #fff;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .stats {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .highlight {
+            color: var(--primary);
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            background: #0a3d5a;
+            color: white;
+        }
+        tr:hover {
+            background: #252525;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            background: var(--primary);
+            color: black;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 DUAL TRACKER DASHBOARD</h1>
+        
+        <div class="stats">
+            Total Executions Tracked: <span class="highlight">{{ total }}</span>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>User ID</th>
+                    <th>Place ID</th>
+                    <th>Server ID</th>
+                    <th>Execution Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for exec in executions %}
+                <tr>
+                    <td>{{ exec.player }}</td>
+                    <td>{{ exec.userId }}</td>
+                    <td>{{ exec.placeId }}</td>
+                    <td><span class="badge">{{ exec.jobId }}</span></td>
+                    <td>{{ exec.time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
