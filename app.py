@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 import sqlite3
 import uuid
 import datetime
@@ -9,63 +9,32 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/scripts'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
-app.config['SECRET_KEY'] = 'FT&G^F%NBUI@##BYU#G^&#VGU'  # Replace with your own secret key
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['SECRET_KEY'] = os.urandom(24).hex()
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# Initialize database
+# Database setup
 def init_db():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    
-    # Create tables
-    c.execute('''CREATE TABLE IF NOT EXISTS users 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  username TEXT, 
-                  hwid TEXT, 
-                  api_key TEXT UNIQUE, 
-                  blacklisted INTEGER DEFAULT 0,
-                  last_execution TEXT)''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS executions 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  user_id INTEGER, 
-                  script_name TEXT, 
-                  execution_time TEXT,
-                  FOREIGN KEY(user_id) REFERENCES users(id))''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS webhooks 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  url TEXT)''')
-    
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users 
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                     username TEXT, 
+                     hwid TEXT UNIQUE, 
+                     blacklisted INTEGER DEFAULT 0,
+                     last_execution TEXT)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS executions 
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                     hwid TEXT, 
+                     script_name TEXT, 
+                     execution_time TEXT)''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS webhooks 
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                     url TEXT UNIQUE)''')
+        conn.commit()
 
 init_db()
-
-# Modified API Key authentication decorator to avoid endpoint conflicts
-def api_key_required(f):
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        api_key = request.headers.get('X-API-KEY') or request.args.get('api_key')
-        if not api_key:
-            return jsonify({'error': 'API key required'}), 401
-            
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
-        c.execute("SELECT id, blacklisted FROM users WHERE api_key=?", (api_key,))
-        user = c.fetchone()
-        conn.close()
-        
-        if not user:
-            return jsonify({'error': 'Invalid API key'}), 401
-        if user[1] == 1:  # Check if blacklisted
-            return jsonify({'error': 'User is blacklisted'}), 403
-            
-        return f(*args, **kwargs)
-    return wrapper
 
 # Routes
 @app.route('/')
@@ -73,97 +42,93 @@ def home():
     return render_template('index.html')
 
 @app.route('/execute', methods=['POST'])
-@api_key_required
 def execute_script():
     data = request.json
-    username = data.get('username')
+    username = data.get('username', 'Unknown')
     hwid = data.get('hwid')
-    script_name = data.get('script_name')
+    script_name = data.get('script_name', 'Unknown')
     
-    # Get API key from request
-    api_key = request.headers.get('X-API-KEY') or request.args.get('api_key')
+    if not hwid:
+        return jsonify({'error': 'HWID required'}), 400
     
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    
-    # Update or create user
-    c.execute("SELECT id FROM users WHERE api_key=?", (api_key,))
-    user = c.fetchone()
-    
-    if user:
-        user_id = user[0]
-        c.execute("UPDATE users SET username=?, hwid=?, last_execution=? WHERE id=?", 
-                 (username, hwid, datetime.datetime.now().isoformat(), user_id))
-    else:
-        c.execute("INSERT INTO users (username, hwid, api_key, last_execution) VALUES (?, ?, ?, ?)",
-                 (username, hwid, api_key, datetime.datetime.now().isoformat()))
-        user_id = c.lastrowid
-    
-    # Log execution
-    c.execute("INSERT INTO executions (user_id, script_name, execution_time) VALUES (?, ?, ?)",
-             (user_id, script_name, datetime.datetime.now().isoformat()))
-    
-    conn.commit()
-    
-    # Get webhook URL
-    c.execute("SELECT url FROM webhooks LIMIT 1")
-    webhook_url = c.fetchone()
-    
-    conn.close()
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        
+        # Check if user is blacklisted
+        c.execute("SELECT blacklisted FROM users WHERE hwid=?", (hwid,))
+        user = c.fetchone()
+        
+        if user and user[0] == 1:
+            return jsonify({'error': 'User is blacklisted'}), 403
+        
+        # Update or create user
+        c.execute("INSERT OR REPLACE INTO users (username, hwid, last_execution) VALUES (?, ?, ?)",
+                 (username, hwid, datetime.datetime.now().isoformat()))
+        
+        # Log execution
+        c.execute("INSERT INTO executions (hwid, script_name, execution_time) VALUES (?, ?, ?)",
+                 (hwid, script_name, datetime.datetime.now().isoformat()))
+        
+        # Get webhook URL
+        c.execute("SELECT url FROM webhooks LIMIT 1")
+        webhook_url = c.fetchone()
+        
+        conn.commit()
     
     # Send to Discord webhook if configured
     if webhook_url and webhook_url[0]:
-        payload = {
-            "content": f"New script execution from {username}",
-            "embeds": [{
-                "title": "Script Execution",
-                "description": f"User: {username}\nHWID: {hwid}\nScript: {script_name}",
-                "color": 0x9933ff,
-                "timestamp": datetime.datetime.now().isoformat()
-            }]
-        }
-        try:
-            requests.post(webhook_url[0], json=payload)
-        except:
-            pass
+        send_discord_webhook(webhook_url[0], username, hwid, script_name)
     
     return jsonify({'status': 'success'})
 
+def send_discord_webhook(url, username, hwid, script_name):
+    payload = {
+        "embeds": [{
+            "title": "Script Execution",
+            "description": f"**User:** {username}\n**HWID:** `{hwid}`\n**Script:** {script_name}",
+            "color": 0x9933ff,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "footer": {"text": "OnyxLuaLoader"}
+        }]
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Webhook error: {e}")
+
 @app.route('/blacklist', methods=['POST'])
-@api_key_required
 def blacklist_user():
-    data = request.json
-    api_key_to_blacklist = data.get('api_key')
+    hwid = request.json.get('hwid')
+    if not hwid:
+        return jsonify({'error': 'HWID required'}), 400
     
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("UPDATE users SET blacklisted=1 WHERE api_key=?", (api_key_to_blacklist,))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET blacklisted=1 WHERE hwid=?", (hwid,))
+        conn.commit()
     
     return jsonify({'status': 'success'})
 
 @app.route('/reset_hwid', methods=['POST'])
-@api_key_required
 def reset_hwid():
-    data = request.json
-    api_key_to_reset = data.get('api_key')
+    old_hwid = request.json.get('hwid')
+    if not old_hwid:
+        return jsonify({'error': 'HWID required'}), 400
+    
     new_hwid = str(uuid.uuid4())
     
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("UPDATE users SET hwid=? WHERE api_key=?", (new_hwid, api_key_to_reset))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET hwid=? WHERE hwid=?", (new_hwid, old_hwid))
+        conn.commit()
     
     return jsonify({'status': 'success', 'new_hwid': new_hwid})
 
 @app.route('/script/<path:filename>')
 def serve_script(filename):
-    # Basic protection - in production you should implement better security
-    referrer = request.headers.get('Referer')
-    if not referrer or 'onyxlualoader' not in referrer:
-        return "Sorry, you can't view this", 403
+    # Basic referrer check
+    if not request.referrer or 'onyxlualoader' not in request.referrer:
+        return "Access denied", 403
     
     try:
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
@@ -171,53 +136,64 @@ def serve_script(filename):
         abort(404)
 
 @app.route('/upload_script', methods=['POST'])
-@api_key_required
 def upload_script():
     if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+        return jsonify({'error': 'No file uploaded'}), 400
     
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
     
-    if file:
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        return jsonify({'status': 'success', 'url': f'/script/{filename}'})
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
     
-    return jsonify({'error': 'Upload failed'}), 400
+    return jsonify({
+        'status': 'success', 
+        'url': f'/script/{filename}',
+        'filename': filename
+    })
 
 @app.route('/set_webhook', methods=['POST'])
-@api_key_required
 def set_webhook():
-    data = request.json
-    webhook_url = data.get('url')
+    url = request.json.get('url')
+    if not url:
+        return jsonify({'error': 'URL required'}), 400
     
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM webhooks")  # Only keep one webhook
-    c.execute("INSERT INTO webhooks (url) VALUES (?)", (webhook_url,))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO webhooks (id, url) VALUES (1, ?)", (url,))
+        conn.commit()
     
     return jsonify({'status': 'success'})
 
 @app.route('/get_users')
-@api_key_required
 def get_users():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("SELECT id, username, hwid, blacklisted, last_execution FROM users")
-    users = [{
-        'id': row[0],
-        'username': row[1],
-        'hwid': row[2],
-        'blacklisted': bool(row[3]),
-        'last_execution': row[4]
-    } for row in c.fetchall()]
-    conn.close()
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("SELECT username, hwid, blacklisted, last_execution FROM users")
+        users = [{
+            'username': row[0],
+            'hwid': row[1],
+            'blacklisted': bool(row[2]),
+            'last_execution': row[3]
+        } for row in c.fetchall()]
     
     return jsonify(users)
 
+@app.route('/get_executions')
+def get_executions():
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("SELECT hwid, script_name, execution_time FROM executions ORDER BY execution_time DESC LIMIT 50")
+        executions = [{
+            'hwid': row[0],
+            'script_name': row[1],
+            'execution_time': row[2]
+        } for row in c.fetchall()]
+    
+    return jsonify(executions)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
