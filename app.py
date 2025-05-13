@@ -46,8 +46,9 @@ def track_execution():
     if data['webhook_url']:
         try:
             payload = {
-                "content": f"Roblox script executed! Total executions: {data['execution_count']}",
-                "username": "Roblox Script Tracker"
+                "content": f"🔥 Roblox script executed! Total executions: {data['execution_count']} 🔥",
+                "username": "Lava Script Tracker",
+                "avatar_url": "https://i.imgur.com/J1wYlqz.png"
             }
             requests.post(data['webhook_url'], json=payload)
         except:
@@ -56,4 +57,4 @@ def track_execution():
     return jsonify({"status": "success", "execution_count": data['execution_count']})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
