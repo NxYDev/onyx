@@ -1,106 +1,266 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Roblox Script Tracker</title>
+    <title>Lava Script Tracker</title>
     <style>
+        :root {
+            --purple: #8a2be2;
+            --blue: #1e90ff;
+            --dark: #0d0d1a;
+            --pink: #ff00ff;
+        }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--dark);
+            color: white;
+            overflow-x: hidden;
+            min-height: 100vh;
+            position: relative;
+        }
+        
+        /* Lava lamp bubbles */
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(20px);
+            opacity: 0.6;
+            z-index: -1;
+            animation: float 15s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-100px) rotate(180deg); }
+        }
+        
+        .container {
             max-width: 800px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
-        }
-        h1 {
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .container {
-            background-color: white;
             padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: rgba(13, 13, 26, 0.7);
+            border-radius: 20px;
+            box-shadow: 0 0 30px var(--purple);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--purple);
+            margin-top: 50px;
+            position: relative;
+            overflow: hidden;
         }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            background: linear-gradient(90deg, var(--purple), var(--blue));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
+        }
+        
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
+        
         label {
             display: block;
             margin-bottom: 8px;
             font-weight: bold;
+            color: var(--blue);
         }
+        
         input[type="text"] {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 8px;
             font-size: 16px;
+            background: rgba(30, 144, 255, 0.1);
+            color: white;
+            border: 1px solid var(--blue);
+            transition: all 0.3s;
         }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--purple);
+            box-shadow: 0 0 10px var(--purple);
+        }
+        
         button {
-            background-color: #3498db;
+            background: linear-gradient(45deg, var(--purple), var(--blue));
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
+            padding: 12px 25px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
-            transition: background-color 0.3s;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
+        
         button:hover {
-            background-color: #2980b9;
+            transform: translateY(-3px);
+            box-shadow: 0 0 25px rgba(138, 43, 226, 0.8);
         }
+        
         .stats {
             margin-top: 30px;
             padding: 20px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
+            background: rgba(30, 144, 255, 0.1);
+            border-radius: 10px;
+            border-left: 5px solid var(--blue);
         }
+        
         .stats h2 {
             margin-top: 0;
-            color: #2c3e50;
+            color: var(--purple);
         }
+        
         .api-info {
             margin-top: 30px;
             padding: 20px;
-            background-color: #e8f4fd;
-            border-radius: 5px;
-            border-left: 4px solid #3498db;
+            background: rgba(138, 43, 226, 0.1);
+            border-radius: 10px;
+            border-left: 5px solid var(--purple);
         }
+        
+        .api-info h2 {
+            color: var(--blue);
+        }
+        
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: var(--pink);
+            font-family: monospace;
+            word-break: break-all;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        
         .success-message {
-            color: #27ae60;
+            color: #00ffaa;
             margin-top: 10px;
             display: none;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(0, 255, 170, 0.5);
+        }
+        
+        .execution-count {
+            font-size: 2.5rem;
+            color: var(--pink);
+            text-shadow: 0 0 10px var(--pink);
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        /* Glowing border effect */
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, var(--purple), var(--blue), var(--pink), var(--blue), var(--purple));
+            background-size: 400%;
+            border-radius: 22px;
+            z-index: -1;
+            animation: animate 8s linear infinite;
+            opacity: 0.7;
+            filter: blur(5px);
+        }
+        
+        @keyframes animate {
+            0% { background-position: 0 0; }
+            50% { background-position: 400% 0; }
+            100% { background-position: 0 0; }
+        }
+        
+        /* Floating particles */
+        .particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background: var(--pink);
+            border-radius: 50%;
+            opacity: 0.5;
+            animation: particle-float 10s infinite linear;
+        }
+        
+        @keyframes particle-float {
+            0% { transform: translateY(0) translateX(0); opacity: 0; }
+            50% { opacity: 0.7; }
+            100% { transform: translateY(-500px) translateX(100px); opacity: 0; }
         }
     </style>
 </head>
 <body>
+    <!-- Lava lamp bubbles -->
+    <div class="bubble" style="width: 200px; height: 200px; background: var(--purple); top: 20%; left: 10%;"></div>
+    <div class="bubble" style="width: 300px; height: 300px; background: var(--blue); top: 60%; left: 70%; animation-delay: 2s;"></div>
+    <div class="bubble" style="width: 150px; height: 150px; background: var(--pink); top: 30%; left: 50%; animation-delay: 4s;"></div>
+    
+    <!-- Floating particles -->
+    <div id="particles"></div>
+    
     <div class="container">
-        <h1>Roblox Script Tracker</h1>
+        <h1>LAVA SCRIPT TRACKER</h1>
         
         <div class="form-group">
-            <label for="webhook_url">Discord Webhook URL:</label>
+            <label for="webhook_url">DISCORD WEBHOOK URL:</label>
             <input type="text" id="webhook_url" value="{{ webhook_url }}" placeholder="https://discord.com/api/webhooks/...">
-            <button onclick="updateWebhook()">Save Webhook</button>
-            <div id="successMessage" class="success-message">Webhook updated successfully!</div>
+            <button onclick="updateWebhook()">🔥 SAVE WEBHOOK 🔥</button>
+            <div id="successMessage" class="success-message">WEBHOOK UPDATED SUCCESSFULLY!</div>
         </div>
         
         <div class="stats">
-            <h2>Execution Statistics</h2>
-            <p>Total script executions: <strong>{{ execution_count }}</strong></p>
+            <h2>EXECUTION STATISTICS</h2>
+            <div class="execution-count">{{ execution_count }}</div>
+            <p>Total script executions tracked</p>
         </div>
         
         <div class="api-info">
-            <h2>API Information</h2>
+            <h2>API INFORMATION</h2>
             <p>Use this endpoint in your Roblox script to track executions:</p>
             <p><code>GET /api/execute</code></p>
-            <p>Full URL: <code id="apiUrl"></code></p>
+            <p>Full URL:</p>
+            <p><code id="apiUrl"></code></p>
         </div>
     </div>
 
     <script>
         // Display the current API URL
         document.getElementById('apiUrl').textContent = window.location.origin + '/api/execute';
+        
+        // Create floating particles
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 30;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                particle.style.left = Math.random() * 100 + 'vw';
+                particle.style.top = Math.random() * 100 + 'vh';
+                particle.style.animationDelay = Math.random() * 10 + 's';
+                particle.style.animationDuration = 5 + Math.random() * 10 + 's';
+                particle.style.width = 2 + Math.random() * 5 + 'px';
+                particle.style.height = particle.style.width;
+                particlesContainer.appendChild(particle);
+            }
+        }
+        
+        // Initialize particles
+        createParticles();
         
         function updateWebhook() {
             const webhookUrl = document.getElementById('webhook_url').value;
@@ -120,6 +280,12 @@
                     setTimeout(() => {
                         successMessage.style.display = 'none';
                     }, 3000);
+                    
+                    // Add a cool effect
+                    document.querySelector('button').style.background = 'linear-gradient(45deg, #ff00ff, #1e90ff)';
+                    setTimeout(() => {
+                        document.querySelector('button').style.background = 'linear-gradient(45deg, var(--purple), var(--blue))';
+                    }, 500);
                 }
             });
         }
